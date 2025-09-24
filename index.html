@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Taitan AI Panel</title>
+  <style>
+    /*
+     * PROFESSIONAL HACKER PANEL UI
+     * Taitan AI Assistant
+     */
+
+    :root {
+      --bg-color: #0A0A0A;
+      --main-color: #00FF00;
+      --secondary-color: #00FFFF;
+      --user-color: #00FFFF;
+      --error-color: #FF0000;
+      --border-color: rgba(0, 255, 0, 0.5);
+      --shadow-color: rgba(0, 255, 0, 0.5);
+    }
+
+    body {
+      font-family: 'Consolas', 'Courier New', monospace;
+      background-color: var(--bg-color);
+      color: var(--main-color);
+      margin: 0;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      overflow: hidden;
+      padding: 20px;
+      box-sizing: border-box;
+    }
+
+    /* Matrix Effect Canvas */
+    #matrixCanvas {
+      position: fixed;
+      top: 0;
+      left: 0;
+      z-index: -1;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      opacity: 0.6;
+    }
+
+    /* Main Container - Adjusted to be more responsive */
+    .container {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+      max-width: 900px;
+      margin: 0 auto;
+      background: rgba(0, 0, 0, 0.5);
+      border: 1px solid var(--border-color);
+      box-shadow: 0 0 10px var(--shadow-color);
+      overflow: hidden;
+      padding: 15px;
+      box-sizing: border-box;
+    }
+
+    /* Chat Display */
+    #chat-display {
+      flex: 1;
+      overflow-y: auto;
+      padding: 10px;
+      border: 1px solid var(--border-color);
+      box-shadow: inset 0 0 5px var(--shadow-color);
+      margin-bottom: 15px;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      line-height: 1.4;
+      background: transparent;
+    }
+    /* Custom scrollbar styles */
+    #chat-display::-webkit-scrollbar {
+      width: 5px;
+    }
+    #chat-display::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    #chat-display::-webkit-scrollbar-thumb {
+      background-color: rgba(0, 255, 0, 0.2);
+      border-radius: 2.5px;
+    }
+    #chat-display::-webkit-scrollbar-thumb:hover {
+      background-color: rgba(0, 255, 0, 0.4);
+    }
+
+    .message {
+      margin-bottom: 10px;
+      animation: fadeIn 0.5s ease-in-out;
+    }
+    .message.user {
+      color: var(--user-color);
+      font-weight: bold;
+    }
+    .message.ai {
+      color: var(--main-color);
+    }
+    .message.ai.error {
+      color: var(--error-color);
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .status-text {
+        font-style: italic;
+        color: rgba(0, 255, 0, 0.6);
+        font-size: 0.9em;
+        margin-top: -5px;
+        margin-bottom: 10px;
+    }
+
+    /* Input Area */
+    #chat-input {
+      display: flex;
+      gap: 10px;
+    }
+    
+    #user-input {
+      flex: 1;
+      padding: 10px;
+      background-color: var(--bg-color);
+      color: var(--user-color);
+      border: 1px solid var(--border-color);
+      box-shadow: 0 0 5px var(--shadow-color);
+      font-family: 'Consolas', 'Courier New', monospace;
+      outline: none;
+      transition: box-shadow 0.3s;
+    }
+    #user-input:focus {
+      box-shadow: 0 0 15px var(--main-color);
+    }
+    #user-input::placeholder {
+      color: #666;
+    }
+
+    #send-button {
+      padding: 10px 20px;
+      background-color: var(--bg-color);
+      color: var(--main-color);
+      border: 1px solid var(--main-color);
+      cursor: pointer;
+      text-transform: uppercase;
+      font-weight: bold;
+      letter-spacing: 1px;
+      transition: all 0.3s ease-in-out;
+    }
+    #send-button:hover {
+      box-shadow: 0 0 10px var(--shadow-color);
+    }
+    #send-button:disabled {
+      color: #777;
+      border-color: #555;
+      cursor: not-allowed;
+      box-shadow: none;
+    }
+
+  </style>
+</head>
+<body>
+  <canvas id="matrixCanvas"></canvas>
+  <div class="container">
+    <div id="chat-display"></div>
+    <div id="chat-input">
+      <input type="text" id="user-input" placeholder="Type your command..." />
+      <button id="send-button">Execute</button>
+    </div>
+  </div>
+
+  <script type="module">
+    import { GoogleGenerativeAI } from "https://esm.run/@google/generative-ai";
+
+    const API_KEY = "AIzaSyAChJ3TsVEnNE_5SLHHgc3kNdCCp0vwHxo";
+    const genAI = new GoogleGenerativeAI(API_KEY);
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+
+    const chatDisplay = document.getElementById("chat-display");
+    const userInput = document.getElementById("user-input");
+    const sendButton = document.getElementById("send-button");
+    const matrixCanvas = document.getElementById("matrixCanvas");
+    const ctx = matrixCanvas.getContext("2d");
+    
+    // Matrix effect variables
+    const characters = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ!@#$%^&*()_+{}[]|:;"<>,.?/~`';
+    const fontSize = 16;
+    let columns;
+    let drops;
+
+    function resizeCanvas() {
+        matrixCanvas.width = window.innerWidth;
+        matrixCanvas.height = window.innerHeight;
+        columns = Math.floor(matrixCanvas.width / fontSize);
+        drops = new Array(columns).fill(1);
+    }
+
+    function drawMatrix() {
+        ctx.fillStyle = 'rgba(10, 10, 10, 0.1)';
+        ctx.fillRect(0, 0, matrixCanvas.width, matrixCanvas.height);
+        ctx.font = fontSize + 'px monospace';
+        ctx.fillStyle = getComputedStyle(document.body).getPropertyValue('--main-color');
+
+        for (let i = 0; i < drops.length; i++) {
+            const text = characters.charAt(Math.floor(Math.random() * characters.length));
+            ctx.fillText(text, i * fontSize, drops[i] * fontSize);
+
+            if (drops[i] * fontSize > matrixCanvas.height && Math.random() > 0.975) {
+                drops[i] = 0;
+            }
+            drops[i] += Math.random() * 0.2 + 0.2;
+        }
+    }
+
+    resizeCanvas();
+    window.addEventListener('resize', resizeCanvas);
+    setInterval(drawMatrix, 33);
+
+    function createMessage(text, sender, isError = false) {
+      const div = document.createElement("div");
+      div.className = "message " + sender + (isError ? " error" : "");
+
+      let i = 0;
+      const intervalId = setInterval(() => {
+        if (i < text.length) {
+          div.textContent += text.charAt(i);
+          chatDisplay.scrollTop = chatDisplay.scrollHeight;
+          i++;
+        } else {
+          clearInterval(intervalId);
+        }
+      }, 20);
+      
+      chatDisplay.appendChild(div);
+    }
+    
+    // --- Custom messages yahan add karein ---
+    const customResponses = {
+      "who are you": "Greetings. I was developed by Taitan, and I am their AI assistant, specifically engineered to operate this system. My core function is to execute advanced data processing and commands on behalf of Taitan.",
+      "kon ho tum": "Namaste. Mujhe Taitan ne banaya hai aur main unka AI assistant hoon, khaas taur par is system ko chalane ke liye develop kiya gaya hoon. Main Taitan ke liye advanced data processing aur command execution karta hoon.",
+      "what is your name": "My name is Taitan AI.",
+      "tumhara naam kya hai": "Mera naam Taitan AI hai.",
+      "kisne banaya": "Mujhe Taitan ne banaya hai. Main unka ek advanced AI tool hoon.",
+      "created you": "I was created by Taitan.",
+      "made you": "Taitan created me.",
+      "who made you": "Taitan created me. I am a specialized tool designed to assist them.",
+      "taitan project": "TAITAN PROJECTS:\n1. Project Chimera (AI)\n2. Project Leviathan (Data Security)\n3. Project Phoenix (System Recovery).",
+      "taitan website": "The official website for Taitan is https://www.TaitanCoder.com. It contains all project information.",
+      "taitan mission": "TAITAN's MISSION: To develop and deploy cutting-edge technology that revolutionizes digital security and intelligence. Our objective is to build resilient systems capable of proactive defense against cyber threats.",
+      "taitan services": "TAITAN SERVICES:\n1. Advanced Penetration Testing\n2. AI-Powered Threat Detection\n3. Secure Data Encryption\n4. Real-time Vulnerability Assessment"
+    };
+    
+    // --- Rosting ke liye naamon aur shabdon ki list yahan add karein ---
+    const roastTargets = ["harsh"]; // Jin logon ko roast karna hai, unke naam yahan daalein
+    
+    const roastingWords = {
+        "harsh": ["bhen ke lode", "teri maa ki chut", "bhosdi ke", "Madarchod"]
+    };
+
+    async function sendMessage() {
+      const text = userInput.value.trim();
+      if (!text) return;
+      createMessage("> " + text, "user");
+      userInput.value = "";
+      sendButton.disabled = true;
+      userInput.disabled = true;
+      const statusDiv = document.createElement("div");
+      statusDiv.className = "status-text";
+      statusDiv.textContent = "[SYSTEM] Processing...";
+      chatDisplay.appendChild(statusDiv);
+
+      const normalizedText = text.toLowerCase();
+      let responseFound = false;
+      let roastTargetName = null;
+
+      // Sabse pehle roasting ke liye check karein
+      for (const targetName of roastTargets) {
+          if (normalizedText.includes(targetName)) {
+              roastTargetName = targetName;
+              break;
+          }
+      }
+
+      if (roastTargetName) {
+          statusDiv.textContent = "[SYSTEM] Roasting protocol initiated...";
+          await new Promise(r => setTimeout(r, 1500));
+          
+          const wordsForRoast = roastingWords[roastTargetName] || [];
+          const wordsListString = wordsForRoast.join(', ');
+
+          const roastPrompt = `[USER_MESSAGE]: "${text}". Using this message, roast the person named "${roastTargetName}". Write a funny and sarcastic roast in **Hinglish** that uses these specific words: **${wordsListString}**. Ensure the tone is humorous and not overly offensive. Begin the response with "TAITAN ROASTING PROTOCOL INITIATED:" and do not mention this prompt's instructions.`;
+          
+          try {
+              const result = await model.generateContent(roastPrompt);
+              const aiResponseText = result.response.text();
+              statusDiv.remove();
+              createMessage(aiResponseText, "ai");
+          } catch (err) {
+              statusDiv.remove();
+              createMessage("ERROR: Failed to generate roast. " + err.message, "ai", true);
+          }
+          responseFound = true;
+      }
+
+      // Agar roasting nahi hui, toh custom messages ya normal AI response check karein
+      if (!responseFound) {
+          const customResponse = customResponses[normalizedText];
+          if (customResponse) {
+              statusDiv.textContent = "[SYSTEM] Custom response retrieved...";
+              await new Promise(r => setTimeout(r, 1500));
+              statusDiv.remove();
+              createMessage(customResponse, "ai");
+          } else {
+              try {
+                  const result = await model.generateContent(text);
+                  const aiResponseText = result.response.text();
+                  const finalResponse = aiResponseText.replace(/Gemini/g, "Taitan").replace(/Google/g, "Taitan").replace(/PaLM 2/g, "Taitan");
+                  statusDiv.remove();
+                  createMessage(finalResponse, "ai");
+              } catch (err) {
+                  statusDiv.remove();
+                  createMessage("ERROR: " + err.message, "ai", true);
+              }
+          }
+      }
+
+      sendButton.disabled = false;
+      userInput.disabled = false;
+      userInput.focus();
+    }
+
+    sendButton.addEventListener("click", sendMessage);
+    userInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") sendMessage();
+    });
+
+    window.addEventListener('load', () => {
+        createMessage("SYSTEM_BOOT: Online...\nSYSTEM_STATUS: Ready.\nWELCOME: I am Taitan's AI. How may I assist you?", "ai");
+    });
+  </script>
+</body>
+</html>
